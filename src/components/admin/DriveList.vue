@@ -67,8 +67,7 @@
                 driveItem: {
                     id: 0,
                     name: '',
-                    protect: false,
-                    password: null,
+                    creationTime: null,
                 },
                 driveEditDialogVisible: false,
                 rules: {
@@ -80,7 +79,8 @@
                 this.$forceUpdate();
             },
             editDrive(row) {
-                Object.assign(this.driveItem, this.driveList[row.id]);
+                // Object.assign(this.driveItem, this.driveList[row.id]);
+                this.driveItem.id = row.id
                 this.driveEditDialogVisible = true;
             },
             deleteDrive(row) {
@@ -111,6 +111,9 @@
                 this.$refs[formName].validate((valid) => {
                     if (valid) {
                         this.loading = true;
+                        // if (this.driveItem.id == null){
+                        //     this.driveItem.id = 0;
+                        // }
                         this.$http.post('admin/drive', this.driveItem).then((response) => {
                             let data =  response.data;
                             this.$message({

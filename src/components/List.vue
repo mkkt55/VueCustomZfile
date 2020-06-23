@@ -1,5 +1,8 @@
 <template>
     <div id="List">
+        <el-button type="default" class="top-button" @click="showFolderDialog=true">创建文件夹</el-button>
+        <el-button type="default" class="top-button" @click="selectFile">上传文件</el-button>
+        <input type="file" ref="fileUploader" v-show="false" @change="uploadFile"/>
         <el-table ref="fileTable" id="ListTable"
                   class="transition-box"
                   :data="this.$store.getters.tableData"
@@ -38,8 +41,11 @@
                     min-width="15%">
                 <template slot-scope="scope">
                     <div v-if="scope.row.type === 'FILE'">
-                        <i @click.stop="download" class="el-icon-download operator-btn"></i>
-                        <i @click.stop="multiSelect" class="el-icon-copy-document operator-btn hidden-sm-and-down"></i>
+                        <i @click.stop="downloadFile" class="el-icon-download operator-btn"></i>
+                        <i @click.stop="deleteFile" class="el-icon-delete operator-btn"></i>
+                    </div>
+                    <div v-if="scope.row.type === 'FOLDER'">
+                        <i @click.stop="deleteDir" class="el-icon-delete operator-btn"></i>
                     </div>
                 </template>
             </el-table-column>
@@ -97,11 +103,30 @@
                 <i class="el-icon-view"></i>
                 <label v-html="hoverRow.type === 'FILE' ?  '预览' : '打开'"></label>
             </v-contextmenu-item>
-            <v-contextmenu-item @click="download" v-show="hoverRow.type === 'FILE'">
+            <v-contextmenu-item @click="downloadFile" v-show="hoverRow.type === 'FILE'">
                 <i class="el-icon-download"></i>
                 <label>下载</label>
             </v-contextmenu-item>
         </v-contextmenu>
+
+        <el-dialog width="80%" title="" :visible.sync="showFolderDialog" top="10vh" :destroy-on-close="true">
+
+                <el-form v-loading="loading"
+                         element-loading-text="保存并初始化中."
+                         id="siteForm" ref="form" :model="folderItem" :rules="rules" label-width="auto" :status-icon="true">
+                    <el-row :gutter="50">
+                        <el-col :span="12">
+                            <el-form-item label="文件夹名称" prop="name">
+                                <el-input v-model="folderItem.newName"/>
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+                </el-form>
+                <div slot="footer" class="dialog-footer" style="text-align: center">
+                    <el-button type="primary" :disabled="loading" @click="createDir()">保 存</el-button>
+                    <el-button @click="showFolderDialog = false">取 消</el-button>
+                </div>
+            </el-dialog>
     </div>
 </template>
 
@@ -123,8 +148,7 @@
         },
         props: ['driveId'],
         created() {
-            let p = this.$route.params.pathMatch;
-            this.searchParam.path = p ? p : '/';
+            this.init();
         },
         data() {
             return {
@@ -150,7 +174,15 @@
                     x: null,
                     y: null
                 },
-                driveList: []
+                driveList: [],
+                newFolderName: '',
+                showFolderDialog: false,
+                folderItem:{
+                    newName: '',
+                    path: ''
+                },
+                rules: {
+                },
             }
         },
         watch: {
@@ -197,8 +229,126 @@
             }
         },
         methods: {
-            multiSelect() {
-                return;
+            getCurrentPath(){
+                let path = this.searchParam.path;
+                return path;
+            },
+            getHoverPath(){
+                let pathToDrive = this.hoverRow.url;
+                pathToDrive = pathToDrive.substring(pathToDrive.indexOf('/') + 1);
+                pathToDrive = pathToDrive.substring(pathToDrive.indexOf('/') + 1);
+                return pathToDrive;
+            },
+            createDir() {
+                console.log(this.$store.getters.tableData)
+                this.$http.post('api/update-folder?driveId=' + this.driveId + '&pathToDrive=' + this.getCurrentPath() + '/' + this.folderItem.newName).then((response) => {
+                    let data =  response.data;
+                    this.$message({
+                        message: data.msg,
+                        type: data.code === 0 ? 'success' : 'error',
+                        duration: 1500,
+                    });
+                    this.showFolderDialog = false;
+                    this.refresh();
+                    this.loading = false;
+                }).catch(()=>{
+                    this.loading = false;
+                })
+            },
+            deleteDir() {
+                let pathToDrive = this.getHoverPath();
+                this.$confirm('是否确认删除？', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning',
+                    callback: action => {
+                        if (action === 'confirm') {
+                            this.$http.delete('api/del-dir?driveId=' + this.driveId + '&pathToDrive=' + pathToDrive).then((response) => {
+                                if (response.data.code === 0) {
+                                    this.$message.success('删除成功');
+                                    this.refresh();
+                                } else {
+                                    this.$message.success('删除失败');
+                                }
+                            });
+                        }
+                    }
+                });
+            },
+            selectFile(){
+                this.$refs.fileUploader.click();
+            },
+            uploadFile(e){
+                // let pathToDrive = this.getHoverPath();
+                let file = e.target.files[0];
+                let param = new FormData(); //创建form对象
+                param.append('file',file);//通过append向form对象添加数据
+                param.append("driveId", this.driveId);
+                param.append("pathToDrive", this.getCurrentPath());
+                
+                console.log(param.get('file')); //FormData私有类对象，访问不到，可以通过get判断值是否传进去
+
+                //添加请求头
+                let config = {
+                    headers:{'Content-Type':'multipart/form-data'}
+                }; 
+                
+                this.$http.post('/api/upload-file', param, config)
+                .then(response=>{
+                    console.log(response.data);
+                    this.refresh();
+                })
+
+                console.log(this.hoverRow.url)
+            },
+            downloadFile() {
+                let pathToDrive = this.getHoverPath();
+                console.log(this.$http);
+                this.$http.get('api/download-file?driveId=' + this.driveId + '&pathToDrive=' + pathToDrive, { responseType:"blob" }).then((response) => {
+                    let fileName = pathToDrive;
+                    fileName = fileName.split("/");
+                    fileName = fileName[fileName.length - 1];
+                    this.saveFile(response, fileName);
+                });
+            },
+            saveFile (data, name) {
+                if (!data) {
+                    return;
+                }
+                let url = window.URL.createObjectURL(new Blob([data]));
+                let link = document.createElement('a');
+                link.style.display = 'none';
+                link.href = url;
+                link.setAttribute('download', name);
+
+                document.body.appendChild(link);
+                link.click();
+                
+                //释放URL对象所占资源
+                window.URL.revokeObjectURL(url)
+                //用完即删
+                document.body.removeChild(link);
+            },
+            deleteFile(){
+                let pathToDrive = this.getHoverPath();
+
+                this.$confirm('是否确认删除？', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning',
+                    callback: action => {
+                        if (action === 'confirm') {
+                            this.$http.delete('api/del-file?driveId=' + this.driveId + '&pathToDrive=' + pathToDrive).then((response) => {
+                                if (response.data.code === 0) {
+                                    this.$message.success('删除成功');
+                                    this.refresh();
+                                } else {
+                                    this.$message.success('删除失败');
+                                }
+                            });
+                        }
+                    }
+                });
             },
             updateTitle() {
                 let basepath = path.basename(this.searchParam.path);
@@ -394,9 +544,14 @@
             preview() {
                 this.openFolder(this.hoverRow);
             },
-            download() {
-                window.location.href = this.hoverRow.url;
+            init(){
+                let p = this.$route.params.pathMatch;
+                this.searchParam.path = p ? p : '/';
             },
+            refresh(){
+                location.reload();
+                // this.$router.go(0)
+            }
         },
         computed: {
             // 当前点击类型的索引
@@ -497,4 +652,21 @@
         font-size: 16px
     }
 
+    .top-button{
+        margin-top: 10px;
+        margin-left: 20px;
+    }
+
+    .el-row {
+        padding: 20px;
+    }
+
+    .el-form-item {
+        margin-right: 50px;
+    }
+
+    .card-title-button {
+        float: right;
+        padding: 3px 0;
+    }
 </style>

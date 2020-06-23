@@ -9,15 +9,15 @@
                 </el-form-item>
                 
                 <el-form-item label="输入旧密码" prop="oldpassword">
-                    <el-input v-model.trim="oldpassword"/>
+                    <el-input v-model.trim="password"/>
                 </el-form-item>
 
                 <el-form-item label="设置新密码" prop="password">
-                    <el-input v-model.trim="newpassword"/>
+                    <el-input v-model.trim="newPassword"/>
                 </el-form-item>
 
                 <el-form-item label="确认密码" prop="repassword">
-                    <el-input v-model.trim="repassword"/>
+                    <el-input v-model.trim="rePassword"/>
                 </el-form-item>
 
                 <el-form-item>
@@ -37,17 +37,17 @@
         data() {
             return {
                 username: '',
-                oldpassword: '',
-                newpassword: '',
-                repassword: ''
+                password: '',
+                newPassword: '',
+                rePassword: ''
             };
         },
         methods: {
             submitForm() {
                 let form = {
                     username: this.username,
-                    oldPassword: this.oldpassword,
-                    rePassword: this.repassword
+                    password: this.password,
+                    newPassword: this.newPassword
                 }
                 if (this.username === ""){
                     this.$message({
@@ -55,19 +55,19 @@
                         type: 'error'
                     });
                 }
-                else if (this.oldpassword === ""){
+                else if (this.password === ""){
                     this.$message({
                         message: '请输入旧密码',
                         type: 'error'
                     });
                 }
-                else if (this.newpassword === ""){
+                else if (this.newPassword === ""){
                     this.$message({
                         message: '请输入新密码',
                         type: 'error'
                     });
                 }
-                else if (this.repassword !== this.newpassword){
+                else if (this.rePassword !== this.newPassword){
                     this.$message({
                         message: '两次新密码不相同',
                         type: 'error'
@@ -79,6 +79,13 @@
                             this.$message({
                                 message: '保存成功',
                                 type: 'success'
+                            });
+                            this.$router.push({"path":"/login"})
+                        }
+                        else{
+                            this.$message({
+                                message: response.data.msg,
+                                type: 'error'
                             });
                         }
                     })
