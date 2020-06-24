@@ -72,7 +72,7 @@
                         我~是有底线的 (～￣▽￣)～
                     </div>
                     <div class="no-more" slot="no-results">
-                        暂无结果 Ծ‸Ծ
+                        暂无更多结果 Ծ‸Ծ
                     </div>
                     <div class="no-more" slot="error">
                         出错了 (╯‵□′)╯︵┻━┻
@@ -240,7 +240,7 @@
                 return pathToDrive;
             },
             createDir() {
-                console.log(this.$store.getters.tableData)
+                // console.log(this.$store.getters.tableData)
                 this.$http.post('api/update-folder?driveId=' + this.driveId + '&pathToDrive=' + this.getCurrentPath() + '/' + this.folderItem.newName).then((response) => {
                     let data =  response.data;
                     this.$message({
@@ -249,7 +249,7 @@
                         duration: 1500,
                     });
                     this.showFolderDialog = false;
-                    this.refresh();
+                    this.refreshList();
                     this.loading = false;
                 }).catch(()=>{
                     this.loading = false;
@@ -266,7 +266,7 @@
                             this.$http.delete('api/del-dir?driveId=' + this.driveId + '&pathToDrive=' + pathToDrive).then((response) => {
                                 if (response.data.code === 0) {
                                     this.$message.success('删除成功');
-                                    this.refresh();
+                                    this.refreshList();
                                 } else {
                                     this.$message.success('删除失败');
                                 }
@@ -286,7 +286,7 @@
                 param.append("driveId", this.driveId);
                 param.append("pathToDrive", this.getCurrentPath());
                 
-                console.log(param.get('file')); //FormData私有类对象，访问不到，可以通过get判断值是否传进去
+                // console.log(param.get('file')); //FormData私有类对象，访问不到，可以通过get判断值是否传进去
 
                 //添加请求头
                 let config = {
@@ -296,22 +296,22 @@
                 this.$http.post('/api/upload-file', param, config)
                 .then(response=>{
                     console.log(response.data);
-                    this.refresh();
+                    this.refreshList();
                 })
 
-                console.log(this.hoverRow.url)
+                // console.log(this.hoverRow.url)
             },
             downloadFile() {
                 let pathToDrive = this.getHoverPath();
-                console.log(this.$http);
                 this.$http.get('api/download-file?driveId=' + this.driveId + '&pathToDrive=' + pathToDrive, { responseType:"blob" }).then((response) => {
                     let fileName = pathToDrive;
                     fileName = fileName.split("/");
                     fileName = fileName[fileName.length - 1];
-                    this.saveFile(response, fileName);
+                    this.saveFile(response.data, fileName);
                 });
             },
             saveFile (data, name) {
+                // console.log(data)
                 if (!data) {
                     return;
                 }
@@ -325,7 +325,7 @@
                 link.click();
                 
                 //释放URL对象所占资源
-                window.URL.revokeObjectURL(url)
+                window.URL.revokeObjectURL(url);
                 //用完即删
                 document.body.removeChild(link);
             },
@@ -341,7 +341,7 @@
                             this.$http.delete('api/del-file?driveId=' + this.driveId + '&pathToDrive=' + pathToDrive).then((response) => {
                                 if (response.data.code === 0) {
                                     this.$message.success('删除成功');
-                                    this.refresh();
+                                    this.refreshList();
                                 } else {
                                     this.$message.success('删除失败');
                                 }
@@ -417,15 +417,19 @@
                         });
                     }
 
-                    store.commit('appendTableData', data.fileList);
-                    this.searchParam.page++;
-                    if ($state) {
-                        $state.loaded();
-                    }
+                    store.commit('tableData', data.fileList);
+                    $state.complete();
+
+                    // 以下代码是分页请求用的，不要了
+                    // store.commit('appendTableData', data.fileList);
+                    // this.searchParam.page++;
+                    // if ($state) {
+                    //     $state.loaded();
+                    // }
                     
-                    if (data.fileList.length === 0 || this.searchParam.page > this.totalPage) {
-                        $state.complete();
-                    }
+                    // if (data.fileList.length === 0 || this.searchParam.page > this.totalPage) {
+                    //     $state.complete();
+                    // }
                 });
             },
             popPassword() {
@@ -548,9 +552,30 @@
                 let p = this.$route.params.pathMatch;
                 this.searchParam.path = p ? p : '/';
             },
-            refresh(){
-                location.reload();
+            refreshList(){
+                // location.reload();
                 // this.$router.go(0)
+
+                this.$http.get('api/list/' + this.driveId, {params: this.searchParam}).then((response) => {
+                    let data = response.data.data;
+
+                    this.totalPage = data.totalPage;
+
+                    let searchPath = this.searchParam.path;
+
+                    if (searchPath !== '' && searchPath !== '/' && this.searchParam.page === 1) {
+                        let fullPath = this.$route.params.pathMatch;
+                        fullPath = fullPath ? fullPath : '/';
+                        let parentPathName = path.basename(path.resolve(fullPath, "../"));
+                        data.fileList.unshift({
+                            name: parentPathName ? parentPathName : '/',
+                            path: path.resolve(searchPath, '../'),
+                            type: 'BACK'
+                        });
+                    }
+
+                    store.commit('tableData', data.fileList);
+                });
             }
         },
         computed: {
